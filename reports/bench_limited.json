@@ -1,0 +1,62 @@
+{
+  "mode": "SIMULATION (in-process provider; assumptions in module docstring)",
+  "config": {
+    "target_rps": 300000,
+    "duration": 20.0,
+    "processes": 10,
+    "tokens": 1000,
+    "latency_ms": 25.0,
+    "failure_rate": 0.01,
+    "rpm_limit": 12000000.0,
+    "tpm_limit": 12000000000.0,
+    "epoch": 1787893228.1960452
+  },
+  "results_measured": {
+    "submitted": 5896960,
+    "rejected": 101782,
+    "completed": 5896960,
+    "succeeded": 5837593,
+    "failed": 59367,
+    "still_waiting": 0,
+    "wall_seconds": 27.9,
+    "achieved_rps_steady_state": 212853,
+    "achieved_rps_peak_second": 300105,
+    "target_met": false,
+    "latency_ms": {
+      "p50": 2935.11,
+      "p95": 7365.55,
+      "p99": 7520.95
+    },
+    "accounting_check": true
+  },
+  "completions_per_second": {
+    "0": 202136,
+    "1": 299927,
+    "2": 299919,
+    "3": 300105,
+    "4": 231446,
+    "5": 200015,
+    "6": 199976,
+    "7": 199787,
+    "8": 200153,
+    "9": 199920,
+    "10": 200024,
+    "11": 200098,
+    "12": 199796,
+    "13": 200220,
+    "14": 199931,
+    "15": 199975,
+    "16": 199981,
+    "17": 200085,
+    "18": 200025,
+    "19": 199896,
+    "20": 200090,
+    "21": 200026,
+    "22": 199774,
+    "23": 200094,
+    "24": 200136,
+    "25": 199890,
+    "26": 200077,
+    "27": 163458
+  }
+}

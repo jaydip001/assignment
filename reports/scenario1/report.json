@@ -1,0 +1,106 @@
+{
+  "title": "Scenario 1 \u2014 Reach the available provider capacity",
+  "checks": [
+    {
+      "name": "load was submitted above the configured capacity",
+      "pass": true,
+      "detail": "submitted at 999.9/s vs capacity 833/s; overload visible as rejected=26,630, waiting=0"
+    },
+    {
+      "name": "completes >= 90% of allowed capacity after warm-up",
+      "pass": true,
+      "detail": "224,350 completed in 279s after warm-up; allowed 232,500; utilisation 96.5%"
+    },
+    {
+      "name": "no 60s window exceeds RPM (gateway ledger)",
+      "pass": true,
+      "detail": "worst rolling 60s = 49,000 of 50,000"
+    },
+    {
+      "name": "no 60s window exceeds TPM (gateway ledger)",
+      "pass": true,
+      "detail": "worst rolling 60s = 49,000,000 of 100,000,000"
+    },
+    {
+      "name": "no 60s window exceeds limits (referee, independent)",
+      "pass": true,
+      "detail": "referee observed worst 60s: 49,000 req / 49,000,000 tokens"
+    },
+    {
+      "name": "provider never returned 429",
+      "pass": true,
+      "detail": "referee 429 count = 0"
+    },
+    {
+      "name": "every submitted request accounted for",
+      "pass": true,
+      "detail": "submitted 299,980 = succeeded 273,350 + failed 0 + rejected 26,630 + expired 0 + waiting 0"
+    }
+  ],
+  "all_pass": true,
+  "sections": {
+    "Setup": "model-a at 50,000 RPM / 100,000,000 TPM; 1000-token requests at 1000/s for 300s (above the ~833/s ceiling). Overload behaviour: bounded queue (30,000) -> excess rejected with 429.",
+    "Load generator accounting": {
+      "succeeded": 273350,
+      "failed": 0,
+      "rejected": 26630,
+      "expired": 0,
+      "waiting": 0,
+      "unknown": 0,
+      "latency_ms": {
+        "end_to_end": {
+          "p50": 30705.1,
+          "p95": 38004.9,
+          "p99": 39254.6
+        },
+        "provider_only": {
+          "p50": 176.7,
+          "p95": 263.5,
+          "p99": 350.3
+        }
+      }
+    },
+    "Achieved completion rate": {
+      "completed_per_second": 808.3,
+      "run_seconds_including_drain": 338.2,
+      "completed_of_submitted_pct": 91.12
+    },
+    "Latency (ms, measured server-side)": {
+      "end_to_end": {
+        "p50": 30705.1,
+        "p95": 38004.9,
+        "p99": 39254.6
+      },
+      "provider_only": {
+        "p50": 176.7,
+        "p95": 263.5,
+        "p99": 350.3
+      }
+    },
+    "Gateway dispatch per 10s": "| t (s) | requests dispatched | tokens |\n|---|---|---|\n| 0\u201310 | 9484 | 9,484,000 |\n| 10\u201320 | 8165 | 8,165,000 |\n| 20\u201330 | 8166 | 8,166,000 |\n| 30\u201340 | 8169 | 8,169,000 |\n| 40\u201350 | 8167 | 8,167,000 |\n| 50\u201360 | 6849 | 6,849,000 |\n| 60\u201370 | 8820 | 8,820,000 |\n| 70\u201380 | 8163 | 8,163,000 |\n| 80\u201390 | 8173 | 8,173,000 |\n| 90\u2013100 | 8161 | 8,161,000 |\n| 100\u2013110 | 8170 | 8,170,000 |\n| 110\u2013120 | 7513 | 7,513,000 |\n| 120\u2013130 | 7825 | 7,825,000 |\n| 130\u2013140 | 8344 | 8,344,000 |\n| 140\u2013150 | 8167 | 8,167,000 |\n| 150\u2013160 | 8165 | 8,165,000 |\n| 160\u2013170 | 8167 | 8,167,000 |\n| 170\u2013180 | 8166 | 8,166,000 |\n| 180\u2013190 | 6990 | 6,990,000 |\n| 190\u2013200 | 8530 | 8,530,000 |\n| 200\u2013210 | 8163 | 8,163,000 |\n| 210\u2013220 | 8169 | 8,169,000 |\n| 220\u2013230 | 8169 | 8,169,000 |\n| 230\u2013240 | 8165 | 8,165,000 |\n| 240\u2013250 | 6803 | 6,803,000 |\n| 250\u2013260 | 8710 | 8,710,000 |\n| 260\u2013270 | 8172 | 8,172,000 |\n| 270\u2013280 | 8162 | 8,162,000 |\n| 280\u2013290 | 8168 | 8,168,000 |\n| 290\u2013300 | 8167 | 8,167,000 |\n| 300\u2013310 | 6622 | 6,622,000 |\n| 310\u2013320 | 8894 | 8,894,000 |\n| 320\u2013330 | 8167 | 8,167,000 |\n| 330\u2013340 | 6465 | 6,465,000 |",
+    "Referee (simulator) verdict": {
+      "config": {
+        "rpm": 50000,
+        "tpm": 100000000,
+        "latency_ms": [
+          80,
+          250
+        ],
+        "failure_rate": 0.0,
+        "transient_rate": 0.0,
+        "queue_size": 30000
+      },
+      "stats": {
+        "accepted": 273350,
+        "rejected_429": 0,
+        "succeeded": 273350,
+        "failed": 0,
+        "transient_503": 0
+      },
+      "worst_60s_window_observed": {
+        "max_rpm_observed": 49000,
+        "max_tpm_observed": 49000000
+      }
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "title": "Scenario 2 \u2014 Different models and changing limits",
+  "checks": [
+    {
+      "name": "each model stays within its current limits (referee: zero 429s)",
+      "pass": true,
+      "detail": "429s \u2014 model-a: 0, model-b: 0"
+    },
+    {
+      "name": "model A within reduced limit (last 60s of constrained phase)",
+      "pass": true,
+      "detail": "A dispatched 4,817 in that window (limit 5,000)"
+    },
+    {
+      "name": "model A speeds back up after the restore",
+      "pass": true,
+      "detail": "A dispatched 29,000 in the final minute (restored limit 30,000)"
+    },
+    {
+      "name": "no restart (same service process the whole time)",
+      "pass": true,
+      "detail": "service pid 6411 unchanged; limit changes were live API calls"
+    },
+    {
+      "name": "model B keeps processing while A is constrained",
+      "pass": true,
+      "detail": "B dispatched 19,272 in the last minute of A's constrained phase (B's ceiling 20,000)"
+    },
+    {
+      "name": "every submitted request accounted for",
+      "pass": true,
+      "detail": "submitted 379,486 = completed 240,290 + rejected 0 + expired 0 + waiting 139,196"
+    }
+  ],
+  "all_pass": true,
+  "sections": {
+    "Setup": "A: 30,000 RPM (cut to 5,000 at t=90s, restored at t=210s, live via PUT /admin/models/model-a/limits). B: 20,000 RPM untouched. Load: ~700/s on A, ~450/s on B.",
+    "Configured limit changes (gateway audit log)": [
+      {
+        "at": 1787892107.683649,
+        "model": "model-a",
+        "rpm": 5000.0,
+        "tpm": 60000000.0
+      },
+      {
+        "at": 1787892229.190614,
+        "model": "model-a",
+        "rpm": 30000.0,
+        "tpm": 60000000.0
+      }
+    ],
+    "Model A throughput over time (per 10s)": "| t (s) | requests dispatched | tokens |\n|---|---|---|\n| 0\u201310 | 5529 | 5,529,000 |\n| 10\u201320 | 4900 | 4,900,000 |\n| 20\u201330 | 4901 | 4,901,000 |\n| 30\u201340 | 4901 | 4,901,000 |\n| 40\u201350 | 4901 | 4,901,000 |\n| 50\u201360 | 4268 | 4,268,000 |\n| 60\u201370 | 5131 | 5,131,000 |\n| 70\u201380 | 4899 | 4,899,000 |\n| 80\u201390 | 4899 | 4,899,000 |\n| 90\u2013100 | 353 | 353,000 |\n| 100\u2013110 | 0 | 0 |\n| 110\u2013120 | 0 | 0 |\n| 120\u2013130 | 0 | 0 |\n| 130\u2013140 | 0 | 0 |\n| 140\u2013150 | 882 | 882,000 |\n| 150\u2013160 | 817 | 817,000 |\n| 160\u2013170 | 817 | 817,000 |\n| 170\u2013180 | 816 | 816,000 |\n| 180\u2013190 | 817 | 817,000 |\n| 190\u2013200 | 751 | 751,000 |\n| 200\u2013210 | 799 | 799,000 |\n| 210\u2013220 | 4009 | 4,009,000 |\n| 220\u2013230 | 4898 | 4,898,000 |\n| 230\u2013240 | 4900 | 4,900,000 |\n| 240\u2013250 | 4901 | 4,901,000 |\n| 250\u2013260 | 4900 | 4,900,000 |\n| 260\u2013270 | 4900 | 4,900,000 |\n| 270\u2013280 | 4501 | 4,501,000 |\n| 280\u2013290 | 4902 | 4,902,000 |\n| 290\u2013300 | 4899 | 4,899,000 |\n| 300\u2013310 | 4900 | 4,900,000 |\n| 310\u2013320 | 4901 | 4,901,000 |\n| 320\u2013330 | 4897 | 4,897,000 |\n| 330\u2013340 | 4412 | 4,412,000 |\n| 340\u2013350 | 4897 | 4,897,000 |\n| 350\u2013360 | 4900 | 4,900,000 |\n| 360\u2013370 | 1473 | 1,473,000 |",
+    "Model B throughput over time (per 10s)": "| t (s) | requests dispatched | tokens |\n|---|---|---|\n| 0\u201310 | 3686 | 3,686,000 |\n| 10\u201320 | 3267 | 3,267,000 |\n| 20\u201330 | 3267 | 3,267,000 |\n| 30\u201340 | 3268 | 3,268,000 |\n| 40\u201350 | 3267 | 3,267,000 |\n| 50\u201360 | 2845 | 2,845,000 |\n| 60\u201370 | 3421 | 3,421,000 |\n| 70\u201380 | 3266 | 3,266,000 |\n| 80\u201390 | 3267 | 3,267,000 |\n| 90\u2013100 | 3268 | 3,268,000 |\n| 100\u2013110 | 3264 | 3,264,000 |\n| 110\u2013120 | 3114 | 3,114,000 |\n| 120\u2013130 | 3095 | 3,095,000 |\n| 130\u2013140 | 3267 | 3,267,000 |\n| 140\u2013150 | 3264 | 3,264,000 |\n| 150\u2013160 | 3267 | 3,267,000 |\n| 160\u2013170 | 3268 | 3,268,000 |\n| 170\u2013180 | 3265 | 3,265,000 |\n| 180\u2013190 | 2940 | 2,940,000 |\n| 190\u2013200 | 3269 | 3,269,000 |\n| 200\u2013210 | 3265 | 3,265,000 |\n| 210\u2013220 | 3268 | 3,268,000 |\n| 220\u2013230 | 3265 | 3,265,000 |\n| 230\u2013240 | 3266 | 3,266,000 |\n| 240\u2013250 | 2942 | 2,942,000 |\n| 250\u2013260 | 3268 | 3,268,000 |\n| 260\u2013270 | 3265 | 3,265,000 |\n| 270\u2013280 | 3265 | 3,265,000 |\n| 280\u2013290 | 3267 | 3,267,000 |\n| 290\u2013300 | 3268 | 3,268,000 |\n| 300\u2013310 | 2832 | 2,832,000 |\n| 310\u2013320 | 3376 | 3,376,000 |\n| 320\u2013330 | 3267 | 3,267,000 |\n| 330\u2013340 | 3265 | 3,265,000 |\n| 340\u2013350 | 3268 | 3,268,000 |\n| 350\u2013360 | 3264 | 3,264,000 |\n| 360\u2013370 | 929 | 929,000 |",
+    "Load generator accounting": {
+      "succeeded": 240290,
+      "failed": 0,
+      "rejected": 0,
+      "expired": 0,
+      "waiting": 139196,
+      "unknown": 0,
+      "latency_ms": {
+        "end_to_end": {
+          "p50": 64211.5,
+          "p95": 178073.7,
+          "p99": 183897.8
+        },
+        "provider_only": {
+          "p50": 133.3,
+          "p95": 211.2,
+          "p99": 342.8
+        }
+      }
+    },
+    "Referee (simulator) verdict": {
+      "model-a": {
+        "config": {
+          "rpm": 30000,
+          "tpm": 60000000,
+          "latency_ms": [
+            60,
+            180
+          ],
+          "failure_rate": 0.0,
+          "transient_rate": 0.0
+        },
+        "stats": {
+          "accepted": 123571,
+          "rejected_429": 0,
+          "succeeded": 123571,
+          "failed": 0,
+          "transient_503": 0
+        },
+        "worst_60s_window_observed": {
+          "max_rpm_observed": 29400,
+          "max_tpm_observed": 29400000
+        }
+      },
+      "model-b": {
+        "config": {
+          "rpm": 20000,
+          "tpm": 40000000,
+          "latency_ms": [
+            60,
+            180
+          ],
+          "failure_rate": 0.0,
+          "transient_rate": 0.0
+        },
+        "stats": {
+          "accepted": 117375,
+          "rejected_429": 0,
+          "succeeded": 117332,
+          "failed": 0,
+          "transient_503": 0
+        },
+        "worst_60s_window_observed": {
+          "max_rpm_observed": 19600,
+          "max_tpm_observed": 19600000
+        }
+      }
+    }
+  }
+}
