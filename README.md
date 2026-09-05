@@ -60,6 +60,40 @@ When the last request of a batch reaches a final state, the gateway POSTs the
 summary (status, total/succeeded/failed, `results_url`) to the callback URL,
 retrying with exponential backoff (up to 10 attempts) if it's down.
 
+## Streaming
+
+Single requests can be streamed token-by-token over SSE:
+
+```bash
+curl -N -X POST localhost:8000/v1/requests/stream \
+  -H 'content-type: application/json' \
+  -d '{"model": "model-a", "estimated_tokens": 500, "payload": {"prompt": "hi"}}'
+```
+
+The response is a live event stream: a metadata event with the `request_id`,
+then one event per generated chunk, then a final event with the terminal
+status and the time-to-first-token (`ttft_ms`).
+
+Design rules for the streaming path:
+
+* **Rate limiting is unchanged** — a stream is one request; it takes one
+  RPM/TPM permit at dispatch, exactly like a normal request.
+* **Completion = end of stream** — the request reaches its final state when
+  the last chunk arrives (or the stream dies), so accounting stays exact.
+* **Retries only before the first chunk** — a transient 503/timeout before
+  any output is retried with a fresh permit; once the client has seen data,
+  an error surfaces as `failed` ("stream interrupted") instead of silently
+  restarting the answer.
+* **Idle timeout, not total** — a stream fails if no chunk arrives for 20s
+  (`STREAM_IDLE_SECONDS`), so long healthy generations are never killed.
+* **Client disconnects are final states** — hanging up mid-stream aborts the
+  provider call and marks the request `failed` ("client disconnected").
+* Streaming is per-request only; batch items cannot set `stream` (batches
+  are fire-and-forget with callbacks by design).
+
+The simulator streams when asked (`stream_chunks` per model, default 8,
+spread across the configured latency) and can fail mid-stream.
+
 ## Configuring models and changing limits
 
 Startup config is `config.json` (shared by gateway and simulator — the
@@ -74,7 +108,7 @@ curl -X PUT localhost:8000/admin/models/model-a/limits \
   -H 'content-type: application/json' -d '{"rpm": 5000}'
 
 # make the simulated provider enforce the new quota
-curl -X PUT localhost:9000/admin/models/model-a \
+curl -X PUT 127.0.0.1:9000/admin/models/model-a \
   -H 'content-type: application/json' -d '{"rpm": 5000}'
 ```
 

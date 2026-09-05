@@ -1,7 +1,7 @@
 PY := .venv/bin/python
 
 .PHONY: install run-simulator run-service loadgen-demo \
-        scenario1 scenario2 scenario3 bench bench-stretch
+        scenario1 scenario2 scenario3 stream-demo bench bench-stretch
 
 install:
 	python3 -m venv .venv
@@ -16,6 +16,10 @@ run-service:
 
 loadgen-demo:
 	$(PY) loadgen.py --rate 200 --duration 30 --model model-a=1.0
+
+stream-demo:
+	curl -N -X POST 127.0.0.1:8000/v1/requests/stream -H 'content-type: application/json' \
+	  -d '{"model": "model-a", "estimated_tokens": 500, "payload": {"prompt": "hi"}}'
 
 scenario1:
 	$(PY) scenarios.py 1

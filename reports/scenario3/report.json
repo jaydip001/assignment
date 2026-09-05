@@ -4,12 +4,12 @@
     {
       "name": "initial acknowledgement within one second",
       "pass": true,
-      "detail": "ack for 10,000 requests took 37ms"
+      "detail": "ack for 10,000 requests took 40ms"
     },
     {
       "name": "callback sent only after all requests reached a final state",
       "pass": true,
-      "detail": "batch completed at t+4.63s; first callback attempt at t+4.63s; callback shows pending=0"
+      "detail": "batch completed at t+4.20s; first callback attempt at t+4.20s; callback shows pending=0"
     },
     {
       "name": "delivery succeeds after the destination recovers",
@@ -19,7 +19,7 @@
     {
       "name": "callback summary matches the batch status from the API",
       "pass": true,
-      "detail": "callback: total=10000 succeeded=9699 failed=301 | API: total=10000 succeeded=9699 failed=301"
+      "detail": "callback: total=10000 succeeded=9691 failed=309 | API: total=10000 succeeded=9691 failed=309"
     },
     {
       "name": "every request id appears exactly once in the final batch result",
@@ -29,76 +29,76 @@
     {
       "name": "simulated permanent failures occurred and were tracked",
       "pass": true,
-      "detail": "301 requests ended in a final 'failed' state"
+      "detail": "309 requests ended in a final 'failed' state"
     },
     {
       "name": "simulated transient failures occurred and were retried",
       "pass": true,
-      "detail": "510 requests needed more than one provider attempt"
+      "detail": "519 requests needed more than one provider attempt"
     }
   ],
   "all_pass": true,
   "sections": {
     "Setup": "One batch of 10,000 requests across two models with a callback_url. Simulator: 5% transient 503s (retried with fresh permits) + 3% permanent failures. Receiver rejects its first 2 deliveries.",
     "Timing": {
-      "ack_ms": 36.8,
-      "batch_completed_after_s": 4.63,
+      "ack_ms": 40.0,
+      "batch_completed_after_s": 4.2,
       "callback_attempts": [
         {
           "n": 1,
-          "at_s": 4.63,
+          "at_s": 4.2,
           "response": 503
         },
         {
           "n": 2,
-          "at_s": 5.14,
+          "at_s": 4.71,
           "response": 503
         },
         {
           "n": 3,
-          "at_s": 6.14,
+          "at_s": 5.71,
           "response": 200
         }
       ]
     },
     "Callback payload (as delivered)": {
-      "batch_id": "batch-8fa3922d4dfa",
+      "batch_id": "batch-cbfda3e2ba5b",
       "status": "completed",
       "total": 10000,
       "pending": 0,
-      "succeeded": 9699,
-      "failed": 301,
+      "succeeded": 9691,
+      "failed": 309,
       "failed_breakdown": {
-        "provider_failed": 301,
+        "provider_failed": 309,
         "rejected": 0,
         "expired": 0
       },
-      "created_at": 1788198272.265122,
-      "completed_at": 1788198276.870259,
+      "created_at": 1788593635.599851,
+      "completed_at": 1788593639.77471,
       "callback": {
         "attempts": 3,
         "delivered_at": null,
         "last_error": "destination returned 503"
       },
-      "results_url": "http://127.0.0.1:8103/v1/batches/batch-8fa3922d4dfa/results"
+      "results_url": "http://127.0.0.1:8103/v1/batches/batch-cbfda3e2ba5b/results"
     },
     "Batch status from the API": {
-      "batch_id": "batch-8fa3922d4dfa",
+      "batch_id": "batch-cbfda3e2ba5b",
       "status": "completed",
       "total": 10000,
       "pending": 0,
-      "succeeded": 9699,
-      "failed": 301,
+      "succeeded": 9691,
+      "failed": 309,
       "failed_breakdown": {
-        "provider_failed": 301,
+        "provider_failed": 309,
         "rejected": 0,
         "expired": 0
       },
-      "created_at": 1788198272.265122,
-      "completed_at": 1788198276.870259,
+      "created_at": 1788593635.599851,
+      "completed_at": 1788593639.77471,
       "callback": {
         "attempts": 3,
-        "delivered_at": 1788198278.381661,
+        "delivered_at": 1788593641.2853062,
         "last_error": null
       }
     }

@@ -7,13 +7,13 @@ import random
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request as HttpRequest
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from service import RateLimiter, Timeline
 
 CONFIG = os.environ.get("CONFIG", "config.json")
 DEFAULTS = {"rpm": 50_000, "tpm": 100_000_000, "latency_ms": [80, 250],
-            "failure_rate": 0.0, "transient_rate": 0.0}
+            "failure_rate": 0.0, "transient_rate": 0.0, "stream_chunks": 8}
 
 models: dict[str, dict] = {}
 
@@ -62,15 +62,36 @@ async def inference(r: HttpRequest):
         return JSONResponse({"error": "temporarily overloaded, retry"}, status_code=503)
 
     latency_ms = random.uniform(*cfg["latency_ms"])
-    await asyncio.sleep(latency_ms / 1000)
+    failed = bool(cfg["failure_rate"]) and random.random() < cfg["failure_rate"]
+    rid = body.get("request_id")
 
-    if cfg["failure_rate"] and random.random() < cfg["failure_rate"]:
+    if body.get("stream"):
+        async def gen():
+            n = int(cfg.get("stream_chunks", 8))
+            emit = random.randint(1, max(1, n - 1)) if failed else n
+            for i in range(emit):
+                await asyncio.sleep(latency_ms / 1000 / n)
+                yield "data: %s\n\n" % json.dumps(
+                    {"request_id": rid, "index": i, "delta": f"token{i} "})
+            if failed:
+                m["stats"]["failed"] += 1
+                final = {"request_id": rid, "done": True, "status": "failed",
+                         "error": "simulated permanent failure"}
+            else:
+                m["stats"]["succeeded"] += 1
+                final = {"request_id": rid, "done": True, "status": "succeeded",
+                         "tokens_used": tokens, "latency_ms": round(latency_ms, 1)}
+            yield "data: %s\n\n" % json.dumps(final)
+        return StreamingResponse(gen(), media_type="text/event-stream")
+
+    await asyncio.sleep(latency_ms / 1000)
+    if failed:
         m["stats"]["failed"] += 1
-        return {"request_id": body.get("request_id"), "status": "failed",
+        return {"request_id": rid, "status": "failed",
                 "error": "simulated permanent failure", "latency_ms": round(latency_ms, 1)}
 
     m["stats"]["succeeded"] += 1
-    return {"request_id": body.get("request_id"), "status": "succeeded",
+    return {"request_id": rid, "status": "succeeded",
             "tokens_used": tokens, "latency_ms": round(latency_ms, 1)}
 
 

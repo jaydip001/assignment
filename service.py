@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 import aiohttp
 from fastapi import FastAPI, HTTPException, Request as HttpRequest
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 PROVIDER_URL = os.environ.get("PROVIDER_URL", "http://127.0.0.1:9000")
 CONFIG = os.environ.get("CONFIG", "config.json")
@@ -22,6 +22,7 @@ MAX_RETRIES = 3
 SAFETY = 0.98
 POLL = 0.01
 CB_ATTEMPTS = 10
+STREAM_IDLE_SECONDS = 20
 
 
 class RateLimiter:
@@ -166,6 +167,8 @@ def finish(req, status, error=None, result=None):
     req["result"] = result if result is not None else req["result"]
     req["completed"] = time.time()
     counters[status] += 1
+    if req.get("chunks") is not None:
+        req["chunks"].put_nowait(None)
     batch = batches.get(req["batch"])
     if batch:
         batch["pending"] -= 1
@@ -185,6 +188,8 @@ def public(req):
         if req["completed"] else None,
         "provider_latency_ms": round((req["completed"] - req["dispatched"]) * 1000, 1)
         if req["completed"] and req["dispatched"] else None,
+        "ttft_ms": round((req["first_chunk"] - req["created"]) * 1000, 1)
+        if req.get("first_chunk") else None,
         "result": req["result"],
     }
 
@@ -235,7 +240,7 @@ async def worker(model):
         req["status"] = "running"
         req["dispatched"] = time.time()
         dispatch_tl[model].record(req["tokens"])
-        spawn(call_provider(req, p))
+        spawn(call_provider_stream(req, p) if req["stream"] else call_provider(req, p))
 
 
 async def call_provider(req, p):
@@ -271,6 +276,74 @@ async def call_provider(req, p):
                                    error=result.get("error", "provider reported failure"))
                         return
             except (aiohttp.ClientError, asyncio.TimeoutError):
+                counters["transient_errors"] += 1
+                retryable = True
+            except Exception as exc:
+                finish(req, "failed", error=f"permanent provider error: {exc}")
+                return
+
+            if retryable:
+                if attempt > MAX_RETRIES:
+                    finish(req, "failed", error="transient errors, retries exhausted")
+                    return
+                if not await reacquire(req, p, attempt):
+                    return
+    finally:
+        p["sem"].release()
+
+
+async def call_provider_stream(req, p):
+    try:
+        attempt = 0
+        while True:
+            attempt += 1
+            req["attempts"] = attempt
+            got_first = False
+            try:
+                async with http.post(
+                        f"{PROVIDER_URL}/v1/inference",
+                        json={"request_id": req["id"], "model": req["model"],
+                              "estimated_tokens": req["tokens"],
+                              "payload": req["payload"], "stream": True},
+                        timeout=aiohttp.ClientTimeout(
+                            total=None, sock_connect=10,
+                            sock_read=STREAM_IDLE_SECONDS)) as resp:
+                    if resp.status == 429:
+                        counters["provider_429"] += 1
+                        retryable = True
+                    elif resp.status >= 500:
+                        counters["transient_errors"] += 1
+                        retryable = True
+                    elif resp.status >= 400:
+                        finish(req, "failed", error=f"provider returned {resp.status}")
+                        return
+                    else:
+                        async for raw in resp.content:
+                            line = raw.decode().strip()
+                            if not line.startswith("data:"):
+                                continue
+                            chunk = json.loads(line[5:])
+                            if not got_first:
+                                got_first = True
+                                req["first_chunk"] = time.time()
+                            if req["client_gone"]:
+                                finish(req, "failed", error="client disconnected")
+                                return
+                            await req["chunks"].put(chunk)
+                            if chunk.get("done"):
+                                completion_tl[req["model"]].record(req["tokens"])
+                                if chunk.get("status") == "succeeded":
+                                    finish(req, "succeeded", result=chunk)
+                                else:
+                                    finish(req, "failed", result=chunk,
+                                           error=chunk.get("error", "provider reported failure"))
+                                return
+                        finish(req, "failed", error="stream ended without a final chunk")
+                        return
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                if got_first:
+                    finish(req, "failed", error="stream interrupted mid-response")
+                    return
                 counters["transient_errors"] += 1
                 retryable = True
             except Exception as exc:
@@ -362,6 +435,9 @@ def validate(item, seen_ids=None):
         raise HTTPException(400, detail={
             "error": f"estimated_tokens={tokens} exceeds what '{model}' can ever dispatch",
             "max_grantable_tokens": pipelines[model]["limiter"].max_tokens()})
+    if item.get("stream") and seen_ids is not None:
+        raise HTTPException(400, detail={
+            "error": "streaming is not supported inside batches; use /v1/requests/stream"})
     rid = item.get("request_id")
     if rid is not None:
         if rid in requests or (seen_ids is not None and rid in seen_ids):
@@ -378,6 +454,9 @@ def admit(item, batch_id=None):
         "error": None, "attempts": 0, "created": time.time(),
         "dispatched": None, "completed": None, "result": None,
         "deadline": time.time() + item["ttl_seconds"] if item.get("ttl_seconds") else None,
+        "stream": bool(item.get("stream")),
+        "chunks": asyncio.Queue() if item.get("stream") else None,
+        "client_gone": False, "first_chunk": None,
     }
     requests[req["id"]] = req
     status_counts["queued"] += 1
@@ -392,10 +471,39 @@ def admit(item, batch_id=None):
 @app.post("/v1/requests", status_code=202)
 async def submit_request(r: HttpRequest):
     item = await r.json()
+    if item.get("stream"):
+        raise HTTPException(400, detail={"error": "use /v1/requests/stream for streaming"})
     validate(item)
     rid, status = admit(item)
     body = {"request_id": rid, "status": status, "status_url": f"/v1/requests/{rid}"}
     return JSONResponse(body, status_code=429) if status == "rejected" else body
+
+
+@app.post("/v1/requests/stream")
+async def submit_request_stream(r: HttpRequest):
+    item = await r.json()
+    validate(item)
+    item["stream"] = True
+    rid, status = admit(item)
+    if status == "rejected":
+        return JSONResponse({"request_id": rid, "status": "rejected",
+                             "error": "queue full: demand exceeds capacity"},
+                            status_code=429)
+    req = requests[rid]
+
+    async def gen():
+        try:
+            yield f'data: {json.dumps({"request_id": rid, "status": "queued"})}\n\n'
+            while True:
+                chunk = await req["chunks"].get()
+                if chunk is None:
+                    yield f'data: {json.dumps({"request_id": rid, "status": req["status"], "error": req["error"], "ttft_ms": public(req)["ttft_ms"]})}\n\n'
+                    break
+                yield f"data: {json.dumps(chunk)}\n\n"
+        finally:
+            req["client_gone"] = True
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.post("/v1/batches", status_code=202)
